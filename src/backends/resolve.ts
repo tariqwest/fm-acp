@@ -1,4 +1,9 @@
 import { afmAvailable, afmPromptTurn, resolveAfmBin } from "./afm.ts";
+import {
+  defaultLabBridgeDescriptor,
+  labBridgeAvailable,
+  labBridgePromptTurn,
+} from "./lab-bridge.ts";
 import { fmAvailable, fmPromptTurn, resolveFmBin } from "./fm.ts";
 import {
   defaultFmServeSocket,
@@ -79,6 +84,16 @@ export async function probeAvailability(
     } catch (err) {
       console.error("[fm-acp] fm serve available failed:", (err as Error).message);
     }
+  }
+  // Foundation Lab Agent Bridge (signed app + connection.json) when running.
+  try {
+    const models = await labBridgeAvailable(defaultLabBridgeDescriptor(), signal);
+    if (models?.length) {
+      // If Lab advertises pcc runnable, surface that; else still useful for system.
+      return { models, source: "afm" };
+    }
+  } catch (err) {
+    console.error("[fm-acp] Lab bridge available failed:", (err as Error).message);
   }
   if (backends.afmBin) {
     try {
@@ -181,10 +196,18 @@ export async function runPromptTurn(
       return await fmPromptTurn(backends.fmBin, turnReq);
     };
     const tryBridge = async (turnReq: PromptTurnRequest) => {
-      if (!backends.afmBin || opts.bridgeEnabled === false) {
-        throw new FmAcpError("afm bridge unavailable");
+      if (opts.bridgeEnabled === false) {
+        throw new FmAcpError("afm/Lab bridge disabled");
       }
-      return await afmPromptTurn(backends.afmBin, turnReq, "bridge");
+      // Descriptor HTTP does not require afm binary; CLI bridge does.
+      try {
+        return await labBridgePromptTurn(turnReq);
+      } catch (err) {
+        if (turnReq.signal?.aborted) throw err;
+        if (!backends.afmBin) throw err;
+        console.error("[fm-acp] Lab bridge HTTP failed:", (err as Error).message);
+        return await afmPromptTurn(backends.afmBin, turnReq, "bridge");
+      }
     };
 
     const errors: string[] = [];

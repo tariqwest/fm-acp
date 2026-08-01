@@ -23,7 +23,7 @@
     "start": "tsx src/index.ts",
     "dev": "tsx src/index.ts",
     "typecheck": "tsc --noEmit",
-"test": "tsx --test src/map.test.ts src/process.test.ts src/config-options.test.ts src/session-id.test.ts src/session-store.test.ts src/adapter.contract.test.ts src/serve-bootstrap.test.ts src/helper-protocol.test.ts src/helper-socket.test.ts src/helper-bootstrap.test.ts src/backends/afm.test.ts src/backends/fm.test.ts src/backends/fm-serve.test.ts src/backends/helper.test.ts",
+"test": "tsx --test src/map.test.ts src/process.test.ts src/config-options.test.ts src/session-id.test.ts src/session-store.test.ts src/adapter.contract.test.ts src/serve-bootstrap.test.ts src/helper-protocol.test.ts src/helper-socket.test.ts src/helper-bootstrap.test.ts src/backends/afm.test.ts src/backends/lab-bridge.test.ts src/backends/fm.test.ts src/backends/fm-serve.test.ts src/backends/helper.test.ts",
     "fm-acp": "tsx src/index.ts",
     "prepack": "pnpm test && pnpm typecheck",
     "prepublishOnly": "pnpm test && pnpm typecheck",
