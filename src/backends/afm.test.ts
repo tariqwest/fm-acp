@@ -3,6 +3,7 @@ import { describe, it } from "node:test";
 import {
   buildAfmAvailableArgs,
   buildAfmBridgeChatArgs,
+  buildAfmModelStatusArgs,
   buildAfmSessionStreamArgs,
   extractAfmDeltaText,
   extractAfmFinalText,
@@ -54,6 +55,10 @@ describe("afm args", () => {
     assert.ok(buildAfmAvailableArgs("system").includes("on-device"));
     assert.ok(buildAfmAvailableArgs("pcc").includes("pcc"));
   });
+
+  it("builds model status args for Homebrew 0.1.0", () => {
+    assert.deepEqual(buildAfmModelStatusArgs(), ["model", "status", "--output", "json"]);
+  });
 });
 
 describe("afm ndjson", () => {
@@ -82,6 +87,23 @@ describe("afm availability parse", () => {
     );
     assert.equal(models.length, 2);
     assert.equal(models[0]!.id, "system");
+    assert.equal(models[1]!.runnableInCurrentProcess, false);
+  });
+
+  it("parses Homebrew model status json as on-device only", () => {
+    const models = parseAfmAvailability(
+      JSON.stringify({
+        isAvailable: true,
+        provider: "Foundation Models",
+        reason: "Apple Intelligence is available and ready to use.",
+        status: "available",
+        useCase: "general",
+      }),
+    );
+    assert.equal(models.length, 2);
+    assert.equal(models[0]!.id, "system");
+    assert.equal(models[0]!.runnableInCurrentProcess, true);
+    assert.equal(models[1]!.id, "pcc");
     assert.equal(models[1]!.runnableInCurrentProcess, false);
   });
 });

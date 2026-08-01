@@ -47,6 +47,7 @@ export function buildAfmSessionStreamArgs(opts: {
   return args;
 }
 
+/** Optional newer CLI (Lab tree / post-0.1.0). Homebrew 0.1.0 has no bridge. */
 export function buildAfmBridgeChatArgs(opts: {
   prompt: string;
   modelId: ModelId;
@@ -54,6 +55,12 @@ export function buildAfmBridgeChatArgs(opts: {
   return ["bridge", "chat", "--model", opts.modelId, "--prompt", opts.prompt, "--output", "json"];
 }
 
+/** Homebrew afm 0.1.0: `model status`. Newer CLI may also expose `available`. */
+export function buildAfmModelStatusArgs(): string[] {
+  return ["model", "status", "--output", "json"];
+}
+
+/** Legacy/newer `afm available` shape; 0.1.0 does not implement this. */
 export function buildAfmAvailableArgs(model?: ModelId): string[] {
   const args = ["available", "--output", "json"];
   if (model) args.push("--model", model === "system" ? "on-device" : "pcc");
@@ -126,17 +133,44 @@ export function extractAfmFinalText(stdout: string): string {
   return stdout.trim();
 }
 
+/** Parse `afm available` JSON or `afm model status` JSON (0.1.0). */
 export function parseAfmAvailability(stdout: string): ModelAvailability[] {
   const text = stdout.trim();
   if (!text) return [];
   try {
     const obj = JSON.parse(text) as Record<string, unknown>;
+    // Homebrew 0.1.0 `model status --output json`:
+    // { isAvailable, provider, reason, status, useCase }
+    if (!Array.isArray(obj.models) && !Array.isArray(obj) && ("isAvailable" in obj || "status" in obj)) {
+      const available = Boolean(obj.isAvailable ?? String(obj.status ?? "").toLowerCase() === "available");
+      const reason =
+        typeof obj.reason === "string"
+          ? obj.reason
+          : available
+            ? null
+            : "Apple Intelligence / on-device model not available";
+      return [
+        {
+          id: "system",
+          available,
+          runnableInCurrentProcess: available,
+          reason,
+        },
+        {
+          id: "pcc",
+          available: false,
+          runnableInCurrentProcess: false,
+          reason:
+            "afm session is on-device only. Use Terminal-hosted fm serve --socket, or Foundation Lab Agent Bridge (connection.json / afm bridge).",
+        },
+      ];
+    }
     const models = Array.isArray(obj.models) ? obj.models : Array.isArray(obj) ? obj : [];
     const out: ModelAvailability[] = [];
     for (const raw of models) {
       if (!raw || typeof raw !== "object") continue;
       const m = raw as Record<string, unknown>;
-      const idRaw = String(m.id ?? m.runtime ?? "").toLowerCase();
+      const idRaw = String(m.id ?? m.runtime ?? m.name ?? "").toLowerCase();
       let id: ModelId | null = null;
       if (idRaw.includes("pcc") || idRaw.includes("private")) id = "pcc";
       else if (idRaw.includes("system") || idRaw.includes("on-device") || idRaw.includes("ondevice")) {
@@ -161,12 +195,26 @@ export function parseAfmAvailability(stdout: string): ModelAvailability[] {
   } catch {
     // human text fallback
     const out: ModelAvailability[] = [];
-    if (/system.*available/i.test(text)) {
+    if (/available and ready|status:\s*available|system.*available/i.test(text)) {
       out.push({ id: "system", available: true, runnableInCurrentProcess: true });
+      out.push({
+        id: "pcc",
+        available: false,
+        runnableInCurrentProcess: false,
+        reason:
+          "afm session is on-device only. Use Terminal-hosted fm serve --socket, or Foundation Lab Agent Bridge.",
+      });
     }
     if (/pcc.*available/i.test(text) && !/not runnable|unavailable/i.test(text)) {
-      out.push({ id: "pcc", available: true, runnableInCurrentProcess: true });
-    } else if (/pcc/i.test(text)) {
+      const existing = out.find((m) => m.id === "pcc");
+      if (existing) {
+        existing.available = true;
+        existing.runnableInCurrentProcess = true;
+        existing.reason = null;
+      } else {
+        out.push({ id: "pcc", available: true, runnableInCurrentProcess: true });
+      }
+    } else if (/pcc/i.test(text) && !out.some((m) => m.id === "pcc")) {
       out.push({
         id: "pcc",
         available: /available/i.test(text),
@@ -183,17 +231,27 @@ export async function afmAvailable(
   signal?: AbortSignal,
 ): Promise<ModelAvailability[]> {
   const extra = parseExtraArgs("AFM_EXTRA_ARGS");
-  const result = await runCommand({
-    bin,
-    args: [...extra, ...buildAfmAvailableArgs()],
-    signal,
-    timeoutMs: 20_000,
-  });
-  if (result.exitCode !== 0) {
-    const err = extractCliError(result.stdout, result.stderr);
-    throw new FmAcpError(err || `afm available failed (${result.exitCode})`);
+  // Prefer model status (Homebrew 0.1.0). Fall back to `available` for newer CLIs.
+  const attempts = [buildAfmModelStatusArgs(), buildAfmAvailableArgs()] as const;
+  let lastErr = "";
+  for (const args of attempts) {
+    const result = await runCommand({
+      bin,
+      args: [...extra, ...args],
+      signal,
+      timeoutMs: 20_000,
+    });
+    if (result.exitCode === 0) {
+      const parsed = parseAfmAvailability(result.stdout || result.stderr);
+      if (parsed.length) return parsed;
+    }
+    lastErr = extractCliError(result.stdout, result.stderr) || `afm exited ${result.exitCode}`;
+    // If the subcommand is unknown, try the next shape.
+    if (!/unexpected argument|unknown|no such/i.test(lastErr) && result.exitCode !== 64) {
+      break;
+    }
   }
-  return parseAfmAvailability(result.stdout || result.stderr);
+  throw new FmAcpError(lastErr || "afm availability probe failed");
 }
 
 export async function afmPromptTurn(
@@ -201,6 +259,8 @@ export async function afmPromptTurn(
   req: PromptTurnRequest,
   mode: "session" | "bridge",
 ): Promise<PromptTurnResult> {
+  // mode "bridge" = optional post-0.1.0 `afm bridge chat` CLI.
+  // Prefer `labBridgePromptTurn` (connection.json HTTP) from resolve.ts first.
   const extra = parseExtraArgs("AFM_EXTRA_ARGS");
   const args =
     mode === "bridge"
