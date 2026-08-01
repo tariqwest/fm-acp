@@ -9,6 +9,7 @@ import {
 import { runHelperPromptTurn } from "./helper.ts";
 import { probeRunning as probeHelperRunning } from "../helper-bootstrap.ts";
 import { helperSocketPath } from "../helper-socket.ts";
+import { ensureFmServe } from "../serve-bootstrap.ts";
 import {
   FmAcpError,
   type BackendId,
@@ -45,6 +46,13 @@ export async function resolveBackends(
   const helperEnabled = probeHelper ? await probeHelperRunning(sock) : false;
   let serveEnabled = false;
   if (opts.probeHelper ?? true) {
+    // Opt-in Terminal-hosted serve bootstrap (cua-driver / open -a Terminal).
+    const boot = await ensureFmServe({ socketPath: serveSock, env });
+    if (boot.status === "started") {
+      console.error(`[fm-acp] auto-started fm serve via ${boot.method} at ${boot.socketPath}`);
+    } else if (boot.status === "failed") {
+      console.error(`[fm-acp] fm serve auto-start failed: ${boot.reason}`);
+    }
     const health = await fmServeHealth(serveSock);
     serveEnabled = Boolean(health);
   }
@@ -139,7 +147,15 @@ export async function runPromptTurn(
 
   const tryServe = async (turnReq: PromptTurnRequest) => {
     const sock = backends.serveSocketPath || defaultFmServeSocket();
-    const health = await fmServeHealth(sock, turnReq.signal);
+    let health = await fmServeHealth(sock, turnReq.signal);
+    if (!health) {
+      // Best-effort late bootstrap (only if FM_ACP_AUTO_SERVE=1).
+      const boot = await ensureFmServe({ socketPath: sock });
+      if (boot.status === "started") {
+        console.error(`[fm-acp] late-started fm serve via ${boot.method}`);
+      }
+      health = await fmServeHealth(sock, turnReq.signal);
+    }
     if (!health) throw new FmAcpError(`fm serve not reachable at ${sock}`);
     return await fmServePromptTurn(sock, turnReq);
   };
