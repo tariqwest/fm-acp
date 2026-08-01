@@ -3,7 +3,7 @@ import { existsSync } from "node:fs";
 import fsp from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
-import { resolveBinary } from "./process.ts";
+import { ensureCuaDriver, resolveCuaDriverBin } from "./cua-driver.ts";
 import { ensurePrivateDir } from "./private-fs.ts";
 import { defaultFmServeSocket, fmServeHealth, FM_SERVE_SOCK_ENV } from "./backends/fm-serve.ts";
 
@@ -18,7 +18,7 @@ export type ServeBootstrapResult =
   | { status: "failed"; reason: string };
 
 export type ServeBootstrapOptions = {
-  /** Allow auto-start. Default reads FM_ACP_AUTO_SERVE. */
+  /** Allow auto-start. Default ON; FM_ACP_AUTO_SERVE=0 disables. */
   auto?: boolean | null;
   socketPath?: string;
   launcherPath?: string;
@@ -30,11 +30,16 @@ export type ServeBootstrapOptions = {
   healthFn?: typeof fmServeHealth;
   /** Injectable binary resolver for tests. */
   resolveCuaDriver?: (env: NodeJS.ProcessEnv) => string | null;
+  /** Injectable cua-driver ensure for tests. */
+  ensureCuaDriverFn?: typeof ensureCuaDriver;
 };
 
-function readEnvBool(env: NodeJS.ProcessEnv, key: string): boolean {
+/** Default ON; set FM_ACP_AUTO_SERVE=0/false/off to disable. */
+function readAutoServeEnabled(env: NodeJS.ProcessEnv, key: string): boolean {
   const v = env[key]?.trim().toLowerCase();
-  return v === "1" || v === "true" || v === "yes";
+  if (v == null || v === "") return true;
+  if (v === "0" || v === "false" || v === "no" || v === "off") return false;
+  return v === "1" || v === "true" || v === "yes" || v === "on";
 }
 
 function readEnvInt(env: NodeJS.ProcessEnv, key: string, fallback: number): number {
@@ -92,12 +97,7 @@ export async function ensureServeLauncher(opts: {
   return opts.launcherPath;
 }
 
-export function resolveCuaDriverBin(env: NodeJS.ProcessEnv = process.env): string | null {
-  return resolveBinary(["cua-driver"], {
-    envPathKeys: ["CUA_DRIVER_BIN", "CUA_DRIVER_PATH"],
-    env,
-  });
-}
+export { resolveCuaDriverBin } from "./cua-driver.ts";
 
 function spawnDetached(
   spawner: typeof spawn,
@@ -142,7 +142,8 @@ export async function waitForFmServe(
 
 /**
  * Ensure Terminal-hosted `fm serve --socket` is reachable.
- * Opt-in via FM_ACP_AUTO_SERVE=1.
+ * Happy path (default ON): ensure cua-driver, then launch Terminal with the serve script.
+ * Disable with FM_ACP_AUTO_SERVE=0.
  *
  * Preferred method: cua-driver launch_app Terminal + additional_arguments
  * (validated to yield PCC). Fallback: open -a Terminal <launcher>.
@@ -155,18 +156,19 @@ export async function ensureFmServe(opts: ServeBootstrapOptions = {}): Promise<S
   const healthFn = opts.healthFn ?? fmServeHealth;
   const spawner = opts.spawnFn ?? spawn;
   const resolveCua = opts.resolveCuaDriver ?? resolveCuaDriverBin;
+  const ensureCua = opts.ensureCuaDriverFn ?? ensureCuaDriver;
 
   if (await healthFn(socketPath)) {
     return { status: "already_running", socketPath };
   }
 
-  const auto = opts.auto ?? readEnvBool(env, AUTO_SERVE_ENV);
+  const auto = opts.auto ?? readAutoServeEnabled(env, AUTO_SERVE_ENV);
   if (!auto) {
     return {
       status: "declined",
       reason:
-        `fm serve not running at ${socketPath}; start it in Terminal.app, or set ${AUTO_SERVE_ENV}=1 ` +
-        `to auto-launch via cua-driver / open -a Terminal`,
+        `fm serve not running at ${socketPath}; start it in Terminal.app, or leave ${AUTO_SERVE_ENV} enabled ` +
+        `(default) to auto-launch via cua-driver / open -a Terminal`,
     };
   }
 
@@ -186,8 +188,19 @@ export async function ensureFmServe(opts: ServeBootstrapOptions = {}): Promise<S
 
   const errors: string[] = [];
 
-  // 1) cua-driver (preferred; validated PCC path)
-  const cua = resolveCua(env);
+  // 1) Ensure cua-driver (happy path dependency), then launch_app
+  let cua = resolveCua(env);
+  if (!cua) {
+    const ensured = await ensureCua({ env });
+    if (ensured.status === "present" || ensured.status === "installed") {
+      cua = ensured.bin;
+      if (ensured.status === "installed") {
+        console.error(`[fm-acp] installed cua-driver at ${ensured.bin}`);
+      }
+    } else {
+      errors.push(`cua-driver: ${ensured.reason}`);
+    }
+  }
   if (cua) {
     try {
       spawnDetached(spawner, cua, buildCuaDriverLaunchArgs(launcherPath), env);
@@ -198,8 +211,6 @@ export async function ensureFmServe(opts: ServeBootstrapOptions = {}): Promise<S
     } catch (err) {
       errors.push(`cua-driver: ${(err as Error).message}`);
     }
-  } else {
-    errors.push("cua-driver: not found on PATH");
   }
 
   // 2) open -a Terminal (also validated)

@@ -22,33 +22,27 @@ ACP host  <--stdio NDJSON-->  fm-acp  <--HTTP over UDS-->  fm serve
 - Apple Silicon with Apple Intelligence enabled
 - Node.js 20+
 - **Either** system `fm` at `/usr/bin/fm` **or** `afm` on `PATH`
+- **`cua-driver`** (happy path for PCC auto-start). Installed automatically by `pnpm install` / first auto-serve; or:
 
-Optional (recommended):
+```bash
+curl -fsSL https://cua.ai/driver/install.sh | bash
+```
+
+Optional:
 
 ```bash
 brew tap rudrankriyam/tap
 brew install afm
 ```
 
-## PCC (recommended): Terminal-hosted `fm serve`
+## PCC (happy path): auto Terminal-hosted `fm serve`
 
-PCC is available to **external clients** when `fm serve` itself runs under Terminal.app:
+PCC is available to **external clients** when `fm serve` itself runs under Terminal.app. **fm-acp does this by default**:
 
-```bash
-# Manual (always works):
-mkdir -p ~/.config/fm-acp
-# In Terminal.app:
-fm serve --socket ~/.config/fm-acp/fm.sock
-
-export FM_ACP_SERVE_SOCK=~/.config/fm-acp/fm.sock
-```
-
-### Auto-start (opt-in)
-
-Set `FM_ACP_AUTO_SERVE=1` in the ACP host env. On first use fm-acp will try, in order:
-
-1. **`cua-driver`** `launch_app` Terminal + `additional_arguments` pointing at `~/.config/fm-acp/start-fm-serve.command` (validated PCC path)
-2. **`open -a Terminal`** that same launcher script
+1. Ensure **`cua-driver`** (install via official script if missing)
+2. Write `~/.config/fm-acp/start-fm-serve.command`
+3. **`cua-driver call launch_app`** Terminal + `additional_arguments` (validated PCC path)
+4. Fallback: **`open -a Terminal`** that launcher
 
 ```json
 {
@@ -56,19 +50,26 @@ Set `FM_ACP_AUTO_SERVE=1` in the ACP host env. On first use fm-acp will try, in 
     "fm": {
       "type": "custom",
       "command": "node",
-      "args": ["/Users/tariqwest/Developer/fm-acp/bin/fm-acp.mjs"],
+      "args": ["/absolute/path/to/fm-acp/bin/fm-acp.mjs"],
       "env": {
-        "FM_ACP_SERVE_SOCK": "/Users/tariqwest/.config/fm-acp/fm.sock",
-        "FM_ACP_AUTO_SERVE": "1"
+        "FM_ACP_SERVE_SOCK": "/Users/you/.config/fm-acp/fm.sock"
       }
     }
   }
 }
 ```
 
-Requires `cua-driver` on PATH for the preferred path (`curl -fsSL https://cua.ai/driver/install.sh | bash`). Without it, `open -a Terminal` is used.
+Disable auto-start with `FM_ACP_AUTO_SERVE=0`. Manual serve still works:
+
+```bash
+# In Terminal.app:
+mkdir -p ~/.config/fm-acp
+fm serve --socket ~/.config/fm-acp/fm.sock
+```
 
 Validated: non-Terminal `fm serve` serves **system** only; Terminal-hosted `fm serve` serves **system + pcc**. `osascript do script` is **not** reliable. Helper `fm respond` under Terminal still fails PCC for the child.
+
+> Note: There is no npm package that ships the `cua-driver` CLI. `@trycua/cua-driver` is an SDK only. fm-acp depends on the **system CLI/app** from [Cua’s installer](https://cua.ai/driver/install.sh) and treats it as a required runtime dependency for the happy path (`postinstall` + runtime ensure).
 
 ## Run
 
@@ -102,13 +103,15 @@ printf '%s\n' '{"jsonrpc":"2.0","id":1,"method":"initialize","params":{"protocol
 }
 ```
 
+Auto-serve + cua-driver ensure run by default (no env required).
+
 ## Legacy Terminal helper
 
-The old `fm-acp-terminal-helper` path (spawn `fm respond` under Terminal) is **not a reliable PCC path** and is kept only as a last-resort fallback. Prefer Terminal-hosted `fm serve` (manual or `FM_ACP_AUTO_SERVE=1`).
+The old `fm-acp-terminal-helper` path (spawn `fm respond` under Terminal) is **not a reliable PCC path** and is kept only as a last-resort fallback. Prefer Terminal-hosted `fm serve` (default auto-start).
 
 When fm-acp handles a PCC turn it tries, in order:
 
-1. **`fm serve --socket`** (if healthy — preferred; auto-start if `FM_ACP_AUTO_SERVE=1`)
+1. **`fm serve --socket`** (if healthy — preferred; auto-started via cua-driver by default)
 2. **Foundation Lab Agent Bridge** (`~/.afm/bridge/connection.json` loopback HTTP, or `afm bridge` CLI if present)
 3. **helper** / direct `fm respond` (legacy best-effort; usually fails PCC)
 
@@ -136,7 +139,11 @@ When fm-acp handles a PCC turn it tries, in order:
 | `FM_EXTRA_ARGS` | Extra args for every `fm` invocation |
 | `XDG_CONFIG_HOME` | Config root (`$XDG_CONFIG_HOME/fm-acp`) |
 | `FM_ACP_SERVE_SOCK` | `fm serve --socket` path (default `~/.config/fm-acp/fm.sock`) |
-| `FM_ACP_AUTO_SERVE` | `1` to auto-launch Terminal-hosted `fm serve` via cua-driver / `open -a Terminal` |
+| `FM_ACP_AUTO_SERVE` | Default **on**. Set `0`/`false` to disable auto Terminal-hosted `fm serve` |
+| `FM_ACP_ENSURE_CUA_DRIVER` | Default **on**. Set `0` to skip installing `cua-driver` when missing |
+| `FM_ACP_SKIP_CUA_DRIVER_POSTINSTALL` | `1` to skip `postinstall` cua-driver ensure |
+| `CUA_DRIVER_INSTALL_URL` | Override installer URL (default `https://cua.ai/driver/install.sh`) |
+| `CUA_DRIVER_BIN_DIR` | Install location for ensure (default `~/.local/bin`) |
 | `FM_ACP_AUTO_SERVE_TIMEOUT_MS` | Wait for serve health after auto-launch (default `12000`) |
 | `FM_ACP_SERVE_LAUNCHER` | Path to `start-fm-serve.command` (default under config dir) |
 | `CUA_DRIVER_BIN` / `CUA_DRIVER_PATH` | Optional absolute path to `cua-driver` |

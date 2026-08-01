@@ -67,6 +67,38 @@ describe("serve-bootstrap", () => {
     }
   });
 
+  it("defaults auto-serve ON when env unset", async () => {
+    tmp = await mkdtemp(path.join(os.tmpdir(), "fm-acp-serve-"));
+    const sock = path.join(tmp, "fm.sock");
+    const launcher = path.join(tmp, "start.command");
+    let calls = 0;
+    const spawned: { cmd: string; args: string[] } = { cmd: "", args: [] };
+    const fakeSpawn = ((cmd: string, args: readonly string[]) => {
+      spawned.cmd = cmd;
+      spawned.args = [...args];
+      const ee = new EventEmitter() as ReturnType<typeof import("node:child_process").spawn>;
+      (ee as unknown as { unref: () => void }).unref = () => undefined;
+      return ee;
+    }) as unknown as typeof import("node:child_process").spawn;
+
+    const result = await ensureFmServe({
+      // auto omitted → default ON
+      socketPath: sock,
+      launcherPath: launcher,
+      timeoutMs: 800,
+      env: { HOME: tmp } as NodeJS.ProcessEnv,
+      spawnFn: fakeSpawn,
+      resolveCuaDriver: () => "/opt/bin/cua-driver",
+      healthFn: async () => {
+        calls += 1;
+        if (calls === 1) return null;
+        return { status: "ok" };
+      },
+    });
+    assert.equal(result.status, "started");
+    assert.equal(spawned.cmd, "/opt/bin/cua-driver");
+  });
+
   it("returns already_running when health is up", async () => {
     tmp = await mkdtemp(path.join(os.tmpdir(), "fm-acp-serve-"));
     const sock = path.join(tmp, "fm.sock");
@@ -143,6 +175,7 @@ describe("serve-bootstrap", () => {
       env: { HOME: tmp } as NodeJS.ProcessEnv,
       spawnFn: fakeSpawn,
       resolveCuaDriver: () => null,
+      ensureCuaDriverFn: async () => ({ status: "skipped", reason: "test" }),
       healthFn: async () => {
         calls += 1;
         if (calls <= 1) return null;

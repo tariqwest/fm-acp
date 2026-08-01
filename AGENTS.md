@@ -21,7 +21,8 @@ pnpm typecheck
 - `src/backends/fm.ts` — direct `/usr/bin/fm respond` spawn (no native addons)
 - `src/backends/helper.ts` — legacy Terminal helper client (not a reliable PCC path)
 - `src/backends/resolve.ts` — routing: **serve → afm/fm → helper**
-- `src/serve-bootstrap.ts` — opt-in Terminal `fm serve` via cua-driver / `open -a Terminal`
+- `src/serve-bootstrap.ts` — default-on Terminal `fm serve` via cua-driver ensure + launch / `open -a Terminal`
+- `src/cua-driver.ts` — resolve/install `cua-driver` (official installer; not an npm CLI)
 - `src/session-id.ts` / `src/private-fs.ts` / `src/session-store.ts` — UUID IDs, 0700/0600 state
 - `src/map.ts` — transcript/history → ACP updates
 - `src/config-options.ts` — model/backend/instructions/…
@@ -32,7 +33,8 @@ pnpm typecheck
 - Stdout is ACP only; log to stderr.
 - Prefer Terminal-hosted `fm serve --socket` (`FM_ACP_SERVE_SOCK`, default `~/.config/fm-acp/fm.sock`).
 - PCC: only validated when **`fm serve` itself** runs under Terminal.app. External clients then get system+pcc. Background `fm serve` is system-only.
-- Opt-in auto-start: `FM_ACP_AUTO_SERVE=1` → `src/serve-bootstrap.ts` uses **cua-driver** `launch_app` Terminal+`additional_arguments` (preferred) then `open -a Terminal` launcher. Do **not** use osascript `do script`.
+- Happy-path auto-start (default ON): `src/serve-bootstrap.ts` ensures **cua-driver** (postinstall + runtime), then `launch_app` Terminal+`additional_arguments` (preferred) then `open -a Terminal`. Disable with `FM_ACP_AUTO_SERVE=0`. Do **not** use osascript `do script`.
+- `cua-driver` is a **required runtime dependency** for the happy path; there is no npm CLI package—use `https://cua.ai/driver/install.sh` (or `pnpm run ensure:cua-driver`).
 - Helper spawning `fm respond` under Terminal still fails PCC for the child — do not treat helper as primary PCC.
 - Homebrew `afm` 0.1.0 has **no** `bridge`/`available`; do not probe those. On-device via `model status` + `session`.
 - Lab Agent Bridge (signed app entitlement) is the designed non-Terminal PCC alternative; not operable until Lab exposes a running bridge host + descriptor. Details: `.agents/research/afm-lab-pcc-findings.md`.
@@ -45,11 +47,11 @@ pnpm typecheck
 ## PCC operator flow
 
 ```bash
-# Terminal.app once per login:
-mkdir -p ~/.config/fm-acp
-fm serve --socket ~/.config/fm-acp/fm.sock
-export FM_ACP_SERVE_SOCK=~/.config/fm-acp/fm.sock
-pnpm start
+pnpm install   # postinstall ensures cua-driver when missing
+pnpm start     # auto-starts Terminal-hosted fm serve via cua-driver by default
+
+# Manual override still works:
+# fm serve --socket ~/.config/fm-acp/fm.sock
 ```
 
 ## Commands used

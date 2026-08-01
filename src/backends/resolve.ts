@@ -51,7 +51,7 @@ export async function resolveBackends(
   const helperEnabled = probeHelper ? await probeHelperRunning(sock) : false;
   let serveEnabled = false;
   if (opts.probeHelper ?? true) {
-    // Opt-in Terminal-hosted serve bootstrap (cua-driver / open -a Terminal).
+    // Happy-path Terminal-hosted serve bootstrap (cua-driver ensure + launch / open -a Terminal).
     const boot = await ensureFmServe({ socketPath: serveSock, env });
     if (boot.status === "started") {
       console.error(`[fm-acp] auto-started fm serve via ${boot.method} at ${boot.socketPath}`);
@@ -164,7 +164,7 @@ export async function runPromptTurn(
     const sock = backends.serveSocketPath || defaultFmServeSocket();
     let health = await fmServeHealth(sock, turnReq.signal);
     if (!health) {
-      // Best-effort late bootstrap (only if FM_ACP_AUTO_SERVE=1).
+      // Best-effort late bootstrap (default ON; FM_ACP_AUTO_SERVE=0 disables).
       const boot = await ensureFmServe({ socketPath: sock });
       if (boot.status === "started") {
         console.error(`[fm-acp] late-started fm serve via ${boot.method}`);
