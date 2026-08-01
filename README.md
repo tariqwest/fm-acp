@@ -35,18 +35,40 @@ brew install afm
 PCC is available to **external clients** when `fm serve` itself runs under Terminal.app:
 
 ```bash
-# In a real Terminal.app window (open -a Terminal works; plain background spawn does not get PCC):
+# Manual (always works):
 mkdir -p ~/.config/fm-acp
+# In Terminal.app:
 fm serve --socket ~/.config/fm-acp/fm.sock
-```
 
-Point fm-acp at that socket (default path above):
-
-```bash
 export FM_ACP_SERVE_SOCK=~/.config/fm-acp/fm.sock
 ```
 
-Validated: non-Terminal `fm serve` serves **system** only; Terminal-hosted `fm serve` serves **system + pcc** to curl/Node clients outside Terminal. A PTY alone is **not** enough. The old helper daemon spawning `fm respond` under Terminal still fails PCC for the child process.
+### Auto-start (opt-in)
+
+Set `FM_ACP_AUTO_SERVE=1` in the ACP host env. On first use fm-acp will try, in order:
+
+1. **`cua-driver`** `launch_app` Terminal + `additional_arguments` pointing at `~/.config/fm-acp/start-fm-serve.command` (validated PCC path)
+2. **`open -a Terminal`** that same launcher script
+
+```json
+{
+  "agent_servers": {
+    "fm": {
+      "type": "custom",
+      "command": "node",
+      "args": ["/Users/tariqwest/Developer/fm-acp/bin/fm-acp.mjs"],
+      "env": {
+        "FM_ACP_SERVE_SOCK": "/Users/tariqwest/.config/fm-acp/fm.sock",
+        "FM_ACP_AUTO_SERVE": "1"
+      }
+    }
+  }
+}
+```
+
+Requires `cua-driver` on PATH for the preferred path (`curl -fsSL https://cua.ai/driver/install.sh | bash`). Without it, `open -a Terminal` is used.
+
+Validated: non-Terminal `fm serve` serves **system** only; Terminal-hosted `fm serve` serves **system + pcc**. `osascript do script` is **not** reliable. Helper `fm respond` under Terminal still fails PCC for the child.
 
 ## Run
 
@@ -80,59 +102,15 @@ printf '%s\n' '{"jsonrpc":"2.0","id":1,"method":"initialize","params":{"protocol
 }
 ```
 
-## Terminal.app helper (PCC)
+## Legacy Terminal helper
 
-Apple's `fm` CLI only allows Private Cloud Compute when a Terminal.app process is an ancestor. GUI-launched hosts (Zed, VS Code, Warp agents, …) fail with:
-
-> Private Cloud Compute is not available in this context. Please use the Terminal app.
-
-`fm-acp` solves this with a small daemon you run **once** inside Terminal.app:
-
-```bash
-# From a real Terminal.app window (not iTerm, not a Warp pane):
-node /absolute/path/to/fm-acp/bin/fm-acp-terminal-helper.mjs
-# or, after pnpm link / global install:
-fm-acp-terminal-helper
-```
-
-It binds a Unix socket at `~/.config/fm-acp/helper.sock` and logs to `~/.config/fm-acp/helper.log`. Leave the window open (or background the process).
+The old `fm-acp-terminal-helper` path (spawn `fm respond` under Terminal) is **not a reliable PCC path** and is kept only as a last-resort fallback. Prefer Terminal-hosted `fm serve` (manual or `FM_ACP_AUTO_SERVE=1`).
 
 When fm-acp handles a PCC turn it tries, in order:
 
-1. **`fm serve --socket`** (if healthy — preferred)
-2. **afm bridge** (if installed and enabled)
-3. **helper** / direct `fm respond` (legacy best-effort; often fails PCC ancestry)
-
-### Auto-bootstrap (optional)
-
-Set `FM_ACP_AUTO_BOOTSTRAP=1` in the host environment to let fm-acp launch the helper via AppleScript (`tell application "Terminal" … do script`). macOS will prompt for Accessibility / Automation permission the first time — grant it to the host app (or to Terminal, depending on the prompt).
-
-```json
-{
-  "agent_servers": {
-    "fm": {
-      "type": "custom",
-      "command": "node",
-      "args": ["/absolute/path/to/fm-acp/bin/fm-acp.mjs"],
-      "env": {
-        "FM_ACP_AUTO_BOOTSTRAP": "1"
-      }
-    }
-  }
-}
-```
-
-Manual start is still recommended for day-to-day use; auto-bootstrap is a convenience for first-run setups.
-
-### Helper env
-
-| Variable | Description |
-|---|---|
-| `FM_ACP_HELPER_SOCK` | Socket path (default `~/.config/fm-acp/helper.sock`) |
-| `FM_ACP_HELPER_LOG` | Log file (default sibling `helper.log`) |
-| `FM_ACP_HELPER_PID` | PID file (default sibling `helper.pid`) |
-| `FM_ACP_AUTO_BOOTSTRAP` | `1`/`true` to allow AppleScript launch |
-| `FM_ACP_AUTO_BOOTSTRAP_TIMEOUT_MS` | Wait for socket after launch (default `5000`) |
+1. **`fm serve --socket`** (if healthy — preferred; auto-start if `FM_ACP_AUTO_SERVE=1`)
+2. **Foundation Lab Agent Bridge** (`~/.afm/bridge/connection.json` loopback HTTP, or `afm bridge` CLI if present)
+3. **helper** / direct `fm respond` (legacy best-effort; usually fails PCC)
 
 ## Config options
 
@@ -144,18 +122,24 @@ Manual start is still recommended for day-to-day use; auto-bootstrap is a conven
 | `use_case` | `general` \| `content-tagging` |
 | `guardrails` | `default` \| `permissive-content-transformations` |
 | `greedy` | boolean (system `fm`) |
-| `bridge` | Prefer `afm bridge` for PCC |
+| `bridge` | Prefer Foundation Lab Agent Bridge / `afm bridge` for PCC |
 
 ## Environment
 
 | Variable | Description |
 |---|---|
 | `AFM_BIN` / `AFM_BIN_PATH` | Path to `afm` |
+| `AFM_BRIDGE_DESCRIPTOR` | Path to Lab `connection.json` (default `~/.afm/bridge/connection.json`) |
+| `AFM_BRIDGE_BASE` | Lab Agent Bridge base folder (default `~/.afm`) |
 | `FM_BIN` / `FM_BIN_PATH` | Path to `fm` (default `/usr/bin/fm`) |
 | `AFM_EXTRA_ARGS` | Extra args for every `afm` invocation |
 | `FM_EXTRA_ARGS` | Extra args for every `fm` invocation |
 | `XDG_CONFIG_HOME` | Config root (`$XDG_CONFIG_HOME/fm-acp`) |
 | `FM_ACP_SERVE_SOCK` | `fm serve --socket` path (default `~/.config/fm-acp/fm.sock`) |
+| `FM_ACP_AUTO_SERVE` | `1` to auto-launch Terminal-hosted `fm serve` via cua-driver / `open -a Terminal` |
+| `FM_ACP_AUTO_SERVE_TIMEOUT_MS` | Wait for serve health after auto-launch (default `12000`) |
+| `FM_ACP_SERVE_LAUNCHER` | Path to `start-fm-serve.command` (default under config dir) |
+| `CUA_DRIVER_BIN` / `CUA_DRIVER_PATH` | Optional absolute path to `cua-driver` |
 | `FM_ACP_HELPER_SOCK` | Legacy helper Unix socket path |
 | `FM_ACP_HELPER_LOG` | Helper log file |
 | `FM_ACP_HELPER_PID` | Helper PID file |
@@ -177,7 +161,7 @@ pnpm start
 ## Notes / limits
 
 - On-device model is small (~3B); not a full coding agent replacement.
-- PCC from GUI-launched hosts needs Terminal-hosted `fm serve --socket` (recommended), a signed Foundation Lab bridge, or launching work inside Terminal.app. Spawning `fm respond` from a Node helper under Terminal still fails PCC. A PTY does **not** satisfy Apple's ancestry check.
+- PCC from GUI-launched hosts needs Terminal-hosted `fm serve --socket` (recommended). **Homebrew `afm` 0.1.0 is on-device only** (no `bridge`/`available`). Foundation Lab is signed with `com.apple.developer.private-cloud-compute` and historically hosted Agent Bridge (`connection.json` + bearer loopback); upstream removed that surface from Lab `main` on 2026-07-01 — see `.agents/research/afm-lab-pcc-findings.md`. Spawning `fm respond` from a Node helper under Terminal still fails PCC. A PTY does **not** satisfy Apple's ancestry check.
 - Keep logs on stderr only — stdout is ACP JSON-RPC.
 
 ## License
