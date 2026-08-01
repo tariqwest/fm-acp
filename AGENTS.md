@@ -1,6 +1,6 @@
 # fm-acp
 
-TypeScript ACP stdio adapter for Apple Foundation Models (`afm` + system `fm`).
+TypeScript ACP stdio adapter for Apple Foundation Models (`fm serve` + `afm` + system `fm`).
 
 ## Setup
 
@@ -15,43 +15,40 @@ pnpm typecheck
 
 - `src/index.ts` — ACP SDK stdio handlers
 - `src/adapter.ts` — session lifecycle + prompt orchestration
+- `src/backends/fm-serve.ts` — HTTP/1.1 over Unix socket to `fm serve` (**preferred**)
 - `src/backends/afm.ts` — afm CLI (session stream + bridge)
-- `src/backends/fm.ts` — system fm via **fm-wrap** (PTY for pcc) + transcript resume
-- `src/backends/helper.ts` — client for the Terminal.app helper daemon
-- `src/backends/resolve.ts` — auto backend / PCC routing (`helper → bridge → fm-wrap`)
-- `src/helper-protocol.ts` — NDJSON wire protocol for the helper
-- `src/helper-socket.ts` — socket/log/pid path resolution + stale cleanup
-- `src/helper-bootstrap.ts` — optional AppleScript launch of the helper
-- `bin/fm-acp-terminal-helper.mjs` — helper daemon (must run under Terminal.app)
+- `src/backends/fm.ts` — direct `/usr/bin/fm respond` spawn (no native addons)
+- `src/backends/helper.ts` — legacy Terminal helper client (not a reliable PCC path)
+- `src/backends/resolve.ts` — routing: **serve → afm/fm → helper**
+- `src/session-id.ts` / `src/private-fs.ts` / `src/session-store.ts` — UUID IDs, 0700/0600 state
 - `src/map.ts` — transcript/history → ACP updates
-- `src/session-store.ts` — `~/.config/fm-acp`
 - `src/config-options.ts` — model/backend/instructions/…
+- Helper modules remain for legacy PCC experiments only
 
 ## Rules
 
 - Stdout is ACP only; log to stderr.
-- Prefer `afm` when installed; fall back to `/usr/bin/fm` via **fm-wrap**.
-- PCC order: **helper** (if socket live) → **afm bridge** (if enabled) → **fm-wrap PTY**. `backend=fm` skips bridge. Never hang silently.
-- A PTY alone does **not** unlock PCC — Apple checks process ancestry, not TTY presence. Do not reintroduce parent-spoofing / process injection.
-- Multi-turn: fm uses `--save-transcript`/`--resume`; afm uses ACP-side history (+ optional chat messages).
+- Prefer Terminal-hosted `fm serve --socket` (`FM_ACP_SERVE_SOCK`, default `~/.config/fm-acp/fm.sock`).
+- PCC: only validated when **`fm serve` itself** runs under Terminal.app. External clients then get system+pcc. Background `fm serve` is system-only.
+- Helper spawning `fm respond` under Terminal still fails PCC for the child — do not treat helper as primary PCC.
+- A PTY alone does **not** unlock PCC. No parent-spoofing / process injection.
+- No `fm-wrap` / `node-pty` runtime dependency.
+- Multi-turn: serve uses message history; fm fallback uses `--save-transcript`/`--resume`; afm uses ACP-side history.
 - Do not parse interactive `fm chat` TUI.
-- Helper auto-bootstrap is opt-in via `FM_ACP_AUTO_BOOTSTRAP=1` (AppleScript `tell application "Terminal" … do script`). Default is manual start.
+- Session IDs must be UUIDs; unknown prompt sessions error; overlapping prompts return busy.
 
-## Helper
+## PCC operator flow
 
 ```bash
-# Manual (preferred): run inside a real Terminal.app window
-node bin/fm-acp-terminal-helper.mjs
+# Terminal.app once per login:
+mkdir -p ~/.config/fm-acp
+fm serve --socket ~/.config/fm-acp/fm.sock
+export FM_ACP_SERVE_SOCK=~/.config/fm-acp/fm.sock
+pnpm start
 ```
-
-Socket default: `~/.config/fm-acp/helper.sock`  
-Env: `FM_ACP_HELPER_SOCK`, `FM_ACP_HELPER_LOG`, `FM_ACP_HELPER_PID`, `FM_ACP_AUTO_BOOTSTRAP`, `FM_ACP_AUTO_BOOTSTRAP_TIMEOUT_MS`
 
 ## Commands used
 
-- `afm available --output json`
-- `afm session stream|chat --output json …`
-- `afm bridge chat --model pcc …`
-- `fm available`
-- `fm respond --model … [--resume] --save-transcript …`
-- `osascript -e 'tell application "Terminal" …'` (optional auto-bootstrap)
+- `fm serve --socket …` → `/health`, `/v1/models`, `/v1/chat/completions`
+- `fm available` / `fm respond …`
+- `afm` session/bridge (when installed)

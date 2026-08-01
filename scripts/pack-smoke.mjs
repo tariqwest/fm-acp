@@ -3,7 +3,7 @@
  * Pack the package and verify the tarball installs without sibling link deps.
  */
 import { spawnSync } from "node:child_process";
-import { mkdtempSync, rmSync, readdirSync, readFileSync } from "node:fs";
+import { existsSync, mkdtempSync, rmSync, readdirSync, readFileSync, writeFileSync } from "node:fs";
 import os from "node:os";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
@@ -19,6 +19,12 @@ function run(cmd, args, opts = {}) {
     stdio: ["ignore", "pipe", "pipe"],
   });
   if (r.status !== 0) {
+    const combined = `${r.stdout ?? ""}\n${r.stderr ?? ""}`;
+    // pnpm may exit 1 solely due to ignored dependency build scripts while still installing.
+    if (opts.allowIgnoredBuilds && /ERR_PNPM_IGNORED_BUILDS/.test(combined)) {
+      console.error(combined.slice(0, 800));
+      return r.stdout ?? "";
+    }
     console.error(r.stdout);
     console.error(r.stderr);
     throw new Error(`${cmd} ${args.join(" ")} failed with ${r.status}`);
@@ -48,16 +54,21 @@ try {
 const installDir = path.join(tmp, "install");
   run("mkdir", ["-p", installDir]);
   // Minimal consumer package — avoid `pnpm init` pulling workspace tooling.
-  const { writeFileSync } = await import("node:fs");
   writeFileSync(
     path.join(installDir, "package.json"),
     JSON.stringify({ name: "fm-acp-pack-smoke", private: true, type: "module" }, null, 2),
   );
   console.error("[pack-smoke] installing tarball…");
-  run("pnpm", ["add", tgzPath, "--ignore-workspace"], { cwd: installDir });
+  run("pnpm", ["add", tgzPath, "--ignore-workspace"], {
+    cwd: installDir,
+    allowIgnoredBuilds: true,
+  });
 
   // Smoke: resolve package entry
   const bin = path.join(installDir, "node_modules", "fm-acp", "bin", "fm-acp.mjs");
+  if (!existsSync(bin)) {
+    throw new Error(`installed package missing bin: ${bin}`);
+  }
   const help = spawnSync(process.execPath, [bin], {
     encoding: "utf8",
     input: '{"jsonrpc":"2.0","id":1,"method":"initialize","params":{"protocolVersion":1}}\n',
