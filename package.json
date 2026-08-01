@@ -1,0 +1,71 @@
+{
+  "name": "fm-acp",
+  "version": "0.1.0",
+  "description": "ACP stdio adapter for Apple Foundation Models (fm serve + afm + system fm)",
+  "type": "module",
+  "license": "MIT",
+  "bin": {
+    "fm-acp": "./bin/fm-acp.mjs",
+    "fm-acp-terminal-helper": "./bin/fm-acp-terminal-helper.mjs"
+  },
+  "files": [
+    "bin",
+    "src",
+    "!src/**/*.test.ts",
+    "README.md",
+    "AGENTS.md",
+    "LICENSE"
+  ],
+  "engines": {
+    "node": ">=20"
+  },
+  "scripts": {
+    "start": "tsx src/index.ts",
+    "dev": "tsx src/index.ts",
+    "typecheck": "tsc --noEmit",
+"test": "tsx --test src/map.test.ts src/process.test.ts src/config-options.test.ts src/session-id.test.ts src/session-store.test.ts src/adapter.contract.test.ts src/helper-protocol.test.ts src/helper-socket.test.ts src/helper-bootstrap.test.ts src/backends/afm.test.ts src/backends/fm.test.ts src/backends/fm-serve.test.ts src/backends/helper.test.ts",
+    "fm-acp": "tsx src/index.ts",
+    "prepack": "pnpm test && pnpm typecheck",
+    "prepublishOnly": "pnpm test && pnpm typecheck",
+    "pack:smoke": "node scripts/pack-smoke.mjs"
+  },
+  "dependencies": {
+    "@agentclientprotocol/sdk": "1.3.0",
+    "tsx": "4.20.5",
+    "zod": "4.0.14"
+  },
+  "devDependencies": {
+    "@types/node": "24.3.0",
+    "typescript": "5.9.2"
+  },
+  "author": "Tariq West",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/tariqwest/fm-acp.git"
+  },
+  "bugs": {
+    "url": "https://github.com/tariqwest/fm-acp/issues"
+  },
+  "homepage": "https://github.com/tariqwest/fm-acp#readme",
+  "keywords": [
+    "acp",
+    "agent-client-protocol",
+    "apple",
+    "foundation-models",
+    "fm",
+    "afm",
+    "pcc",
+    "zed",
+    "stdio",
+    "cli",
+    "agent"
+  ],
+  "packageManager": "pnpm@11.18.0",
+  "publishConfig": {
+    "access": "public",
+    "registry": "https://registry.npmjs.org/"
+  },
+  "os": [
+    "darwin"
+  ]
+}
