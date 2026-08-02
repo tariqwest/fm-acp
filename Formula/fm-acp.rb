@@ -1,14 +1,14 @@
 class FmAcp < Formula
   desc "ACP stdio adapter for Apple Foundation Models (Terminal-hosted fm serve + PCC)"
   homepage "https://github.com/tariqwest/fm-acp"
-  url "https://github.com/tariqwest/fm-acp/releases/download/v0.1.0/fm-acp-prebuilt-0.1.0.tar.gz"
-  sha256 "90c0c50ffd111770f1faa9dc9101c778ed01c267ecf60edc57b5c251bb7e9690"
+  url "https://github.com/tariqwest/fm-acp/releases/download/v0.1.1/fm-acp-prebuilt-0.1.1.tar.gz"
+  sha256 "71672967ad53a83b25951b2b0faf80d1b856161a18cc6663fe161757751671aa"
   license "MIT"
 
   depends_on "bun"
   depends_on "cua-driver"
   depends_on :macos
-  depends_on "node" # npm/npx + FM_ACP_RUNTIME=node fallback (tsx)
+  depends_on "node"
 
   def install
     libexec.install Dir["*"]
@@ -18,7 +18,6 @@ class FmAcp < Formula
       set -euo pipefail
       export FM_ACP_SKIP_CUA_DRIVER_POSTINSTALL="${FM_ACP_SKIP_CUA_DRIVER_POSTINSTALL:-1}"
       export PATH="#{formula_opt_bin("cua-driver")}:#{formula_opt_bin("bun")}:#{formula_opt_bin("node")}:${PATH}"
-      # Default to Bun when available; override with FM_ACP_RUNTIME=node for tsx/npx-style Node.
       export FM_ACP_RUNTIME="${FM_ACP_RUNTIME:-bun}"
       exec "#{formula_opt_bin("node")}/node" "#{libexec}/bin/fm-acp.mjs" "$@"
     EOS
@@ -44,8 +43,8 @@ class FmAcp < Formula
         - /usr/bin/fm (system) and/or afm on PATH
 
       Runtime:
-        - Preferred: Bun (Homebrew dependency)
-        - Fallback / npm-npx: Node + bundled tsx (FM_ACP_RUNTIME=node)
+        - Preferred: Bun
+        - Fallback / npm-npx: Node + tsx (FM_ACP_RUNTIME=node)
 
       PCC happy path (default):
         fm-acp auto-starts Terminal-hosted `fm serve` via cua-driver.

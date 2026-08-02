@@ -13,7 +13,10 @@ class CuaDriver < Formula
   depends_on :macos
 
   def install
+    # Staged tarball contains CLI binaries + CuaDriver.app (TCC identity).
     prefix.install "CuaDriver.app" if (buildpath/"CuaDriver.app").exist?
+
+    # Keep supporting libs next to a stable libexec root.
     libexec.install Dir["*"]
 
     if (prefix/"CuaDriver.app").exist?
