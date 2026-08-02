@@ -34,7 +34,9 @@
     "pack:smoke": "bun scripts/pack-smoke.mjs",
     "postinstall": "node scripts/ensure-cua-driver.mjs",
     "ensure:cua-driver": "node scripts/ensure-cua-driver.mjs",
-    "release:homebrew": "bun scripts/homebrew-release.mjs"
+    "release:homebrew": "bun scripts/release.mjs --homebrew-only",
+    "release": "bun scripts/release.mjs",
+    "release:github": "bun scripts/release.mjs --github-only"
   },
   "dependencies": {
     "@agentclientprotocol/sdk": "1.3.0",

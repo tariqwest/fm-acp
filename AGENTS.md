@@ -61,3 +61,14 @@ pnpm start     # auto-starts Terminal-hosted fm serve via cua-driver by default
 - `fm available` / `fm respond …`
 - `afm model status` / `afm session …` (on-device; Homebrew 0.1.0)
 - Lab Agent Bridge `~/.afm/bridge/connection.json` when enabled (PCC candidate)
+
+## Release
+
+Use the coupled release script (GitHub + Homebrew unless opted out):
+
+```bash
+bun run release
+bun run release -- --github-only
+bun run release -- --homebrew-only
+```
+

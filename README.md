@@ -173,6 +173,24 @@ pnpm run fm-acp:node
 
 `bin/fm-acp.mjs` keeps a **Node shebang** for `npx`/`npm` and prefers **Bun** when available (`FM_ACP_RUNTIME=bun|node` to force).
 
+
+## Release
+
+GitHub release and Homebrew tap updates are **coupled by default**:
+
+```bash
+# full release (tests → tarball → GitHub tag/release → homebrew-tap push)
+bun run release
+
+# opt out of one side when needed:
+bun run release -- --github-only
+bun run release -- --homebrew-only
+bun run release -- --dry-run
+bun run release -- --skip-tests
+```
+
+`release:homebrew` / `release:github` are thin aliases. Formula sources also live in `Formula/` and are published to `tariqwest/homebrew-tap`.
+
 ## Notes / limits
 
 - On-device model is small (~3B); not a full coding agent replacement.
