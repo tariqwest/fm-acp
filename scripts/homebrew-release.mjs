@@ -149,14 +149,14 @@ function renderFmAcpFormula({ version, url, sha256 }) {
   return `class FmAcp < Formula
   desc "ACP stdio adapter for Apple Foundation Models (Terminal-hosted fm serve + PCC)"
   homepage "https://github.com/${ownerRepo}"
+  version "${version}"
   url "${url}"
   sha256 "${sha256}"
   license "MIT"
-  version "${version}"
 
-  depends_on "node"
-  depends_on "cua-driver"
   depends_on :macos
+  depends_on "cua-driver"
+  depends_on "node"
 
   def install
     libexec.install Dir["*"]
@@ -165,15 +165,15 @@ function renderFmAcpFormula({ version, url, sha256 }) {
       #!/bin/bash
       set -euo pipefail
       export FM_ACP_SKIP_CUA_DRIVER_POSTINSTALL="\${FM_ACP_SKIP_CUA_DRIVER_POSTINSTALL:-1}"
-      export PATH="#{Formula["cua-driver"].opt_bin}:\${PATH}"
-      exec "#{Formula["node"].opt_bin}/node" "#{libexec}/bin/fm-acp.mjs" "$@"
+      export PATH="#{formula_opt_bin("cua-driver")}:\${PATH}"
+      exec "#{formula_opt_bin("node")}/node" "#{libexec}/bin/fm-acp.mjs" "$@"
     EOS
     chmod 0755, bin/"fm-acp"
 
     (bin/"fm-acp-terminal-helper").write <<~EOS
       #!/bin/bash
       set -euo pipefail
-      exec "#{Formula["node"].opt_bin}/node" "#{libexec}/bin/fm-acp-terminal-helper.mjs" "$@"
+      exec "#{formula_opt_bin("node")}/node" "#{libexec}/bin/fm-acp-terminal-helper.mjs" "$@"
     EOS
     chmod 0755, bin/"fm-acp-terminal-helper"
   end
@@ -211,10 +211,10 @@ function renderCuaDriverFormula({ version, url, sha256, tagName }) {
   return `class CuaDriver < Formula
   desc "Background computer-use driver CLI + app (Cua) for macOS automation"
   homepage "https://cua.ai/cua-driver"
+  version "${version}"
   url "${url}"
   sha256 "${sha256}"
   license "MIT"
-  version "${version}"
 
   livecheck do
     url "https://github.com/trycua/cua/releases"
