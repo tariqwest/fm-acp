@@ -1,13 +1,12 @@
 class FmAcp < Formula
   desc "ACP stdio adapter for Apple Foundation Models (Terminal-hosted fm serve + PCC)"
   homepage "https://github.com/tariqwest/fm-acp"
-  version "0.1.0"
   url "https://github.com/tariqwest/fm-acp/releases/download/v0.1.0/fm-acp-prebuilt-0.1.0.tar.gz"
   sha256 "90c0c50ffd111770f1faa9dc9101c778ed01c267ecf60edc57b5c251bb7e9690"
   license "MIT"
 
-  depends_on :macos
   depends_on "cua-driver"
+  depends_on :macos
   depends_on "node"
 
   def install

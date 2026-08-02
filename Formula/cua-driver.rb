@@ -1,7 +1,6 @@
 class CuaDriver < Formula
   desc "Background computer-use driver CLI + app (Cua) for macOS automation"
   homepage "https://cua.ai/cua-driver"
-  version "0.16.0"
   url "https://github.com/trycua/cua/releases/download/cua-driver-rs-v0.16.0/cua-driver-rs-0.16.0-darwin-universal.tar.gz"
   sha256 "ed3c82643d42ac8482e77cd948227f2fb44e0f65e084ea11cc2cbca4fa8ec691"
   license "MIT"
@@ -14,10 +13,7 @@ class CuaDriver < Formula
   depends_on :macos
 
   def install
-    # Staged tarball contains CLI binaries + CuaDriver.app (TCC identity).
     prefix.install "CuaDriver.app" if (buildpath/"CuaDriver.app").exist?
-
-    # Keep supporting libs next to a stable libexec root.
     libexec.install Dir["*"]
 
     if (prefix/"CuaDriver.app").exist?

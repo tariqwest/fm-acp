@@ -149,13 +149,12 @@ function renderFmAcpFormula({ version, url, sha256 }) {
   return `class FmAcp < Formula
   desc "ACP stdio adapter for Apple Foundation Models (Terminal-hosted fm serve + PCC)"
   homepage "https://github.com/${ownerRepo}"
-  version "${version}"
   url "${url}"
   sha256 "${sha256}"
   license "MIT"
 
-  depends_on :macos
   depends_on "cua-driver"
+  depends_on :macos
   depends_on "node"
 
   def install
@@ -211,7 +210,6 @@ function renderCuaDriverFormula({ version, url, sha256, tagName }) {
   return `class CuaDriver < Formula
   desc "Background computer-use driver CLI + app (Cua) for macOS automation"
   homepage "https://cua.ai/cua-driver"
-  version "${version}"
   url "${url}"
   sha256 "${sha256}"
   license "MIT"
