@@ -1,6 +1,6 @@
 {
   "name": "fm-acp",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "description": "ACP stdio adapter for Apple Foundation Models (fm serve + afm + system fm)",
   "type": "module",
   "license": "MIT",
