@@ -1,4 +1,5 @@
 #!/usr/bin/env node
+/** Runtime: plain ESM — works under Bun or Node (npm/npx). Prefer `bun bin/fm-acp-terminal-helper.mjs` in dev. */
 /**
  * fm-acp-terminal-helper
  *

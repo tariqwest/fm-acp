@@ -153,6 +153,7 @@ function renderFmAcpFormula({ version, url, sha256 }) {
   sha256 "${sha256}"
   license "MIT"
 
+  depends_on "bun"
   depends_on "cua-driver"
   depends_on :macos
   depends_on "node"
@@ -164,7 +165,8 @@ function renderFmAcpFormula({ version, url, sha256 }) {
       #!/bin/bash
       set -euo pipefail
       export FM_ACP_SKIP_CUA_DRIVER_POSTINSTALL="\${FM_ACP_SKIP_CUA_DRIVER_POSTINSTALL:-1}"
-      export PATH="#{formula_opt_bin("cua-driver")}:\${PATH}"
+      export PATH="#{formula_opt_bin("cua-driver")}:#{formula_opt_bin("bun")}:#{formula_opt_bin("node")}:\${PATH}"
+      export FM_ACP_RUNTIME="\${FM_ACP_RUNTIME:-bun}"
       exec "#{formula_opt_bin("node")}/node" "#{libexec}/bin/fm-acp.mjs" "$@"
     EOS
     chmod 0755, bin/"fm-acp"
@@ -172,6 +174,10 @@ function renderFmAcpFormula({ version, url, sha256 }) {
     (bin/"fm-acp-terminal-helper").write <<~EOS
       #!/bin/bash
       set -euo pipefail
+      export PATH="#{formula_opt_bin("bun")}:#{formula_opt_bin("node")}:\${PATH}"
+      if command -v bun >/dev/null 2>&1 && [ "\${FM_ACP_RUNTIME:-bun}" != "node" ]; then
+        exec bun "#{libexec}/bin/fm-acp-terminal-helper.mjs" "$@"
+      fi
       exec "#{formula_opt_bin("node")}/node" "#{libexec}/bin/fm-acp-terminal-helper.mjs" "$@"
     EOS
     chmod 0755, bin/"fm-acp-terminal-helper"
@@ -183,6 +189,10 @@ function renderFmAcpFormula({ version, url, sha256 }) {
         - macOS 26+ (27+ for system fm / PCC)
         - Apple Silicon with Apple Intelligence enabled
         - /usr/bin/fm (system) and/or afm on PATH
+
+      Runtime:
+        - Preferred: Bun
+        - Fallback / npm-npx: Node + tsx (FM_ACP_RUNTIME=node)
 
       PCC happy path (default):
         fm-acp auto-starts Terminal-hosted \`fm serve\` via cua-driver.

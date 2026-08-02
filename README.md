@@ -20,7 +20,7 @@ ACP host  <--stdio NDJSON-->  fm-acp  <--HTTP over UDS-->  fm serve
 
 - macOS 26+ (27+ for system `fm` / PCC)
 - Apple Silicon with Apple Intelligence enabled
-- Node.js 20+
+- **Bun** ≥ 1.1 (preferred dev/runtime) and/or **Node.js** ≥ 20 (npm/npx + `FM_ACP_RUNTIME=node`)
 - **Either** system `fm` at `/usr/bin/fm` **or** `afm` on `PATH`
 - **`cua-driver`** (happy path for PCC auto-start). Installed automatically by `pnpm install` / first auto-serve; or:
 
@@ -75,17 +75,20 @@ Validated: non-Terminal `fm serve` serves **system** only; Terminal-hosted `fm s
 
 ```bash
 cd fm-acp
-pnpm install
-pnpm start          # ACP over stdio
-# or
-node bin/fm-acp.mjs
+pnpm install        # package manager (lockfile)
+bun run start       # preferred: Bun
+# npm/npx Node path still works:
+#   pnpm run fm-acp:node
+#   node bin/fm-acp.mjs          # auto-picks Bun if on PATH, else Node+tsx
+#   FM_ACP_RUNTIME=node node bin/fm-acp.mjs
 ```
 
 Smoke:
 
 ```bash
 printf '%s\n' '{"jsonrpc":"2.0","id":1,"method":"initialize","params":{"protocolVersion":1}}' \
-  | node bin/fm-acp.mjs
+  | bun run start
+# or: node bin/fm-acp.mjs
 ```
 
 ## Host setup (Zed example)
@@ -159,11 +162,16 @@ Transcripts (fm backend): `~/.config/fm-acp/transcripts/<sessionId>.json`
 ## Development
 
 ```bash
-pnpm install
-pnpm test
-pnpm typecheck
-pnpm start
+pnpm install       # install deps (pnpm lockfile)
+bun test           # preferred
+bun run typecheck
+bun run start
+# Node parity:
+pnpm run test:node
+pnpm run fm-acp:node
 ```
+
+`bin/fm-acp.mjs` keeps a **Node shebang** for `npx`/`npm` and prefers **Bun** when available (`FM_ACP_RUNTIME=bun|node` to force).
 
 ## Notes / limits
 

@@ -6,9 +6,9 @@ TypeScript ACP stdio adapter for Apple Foundation Models (`fm serve` + `afm` + s
 
 ```bash
 pnpm install
-chmod +x bin/fm-acp.mjs bin/fm-acp-terminal-helper.mjs
-pnpm test
-pnpm typecheck
+chmod +x bin/fm-acp.mjs bin/fm-acp-terminal-helper.mjs bin/runtime.mjs
+bun test
+bun run typecheck
 ```
 
 ## Architecture
@@ -31,6 +31,7 @@ pnpm typecheck
 ## Rules
 
 - Stdout is ACP only; log to stderr.
+- Prefer **Bun** for local dev/test (`bun test`, `bun run start`). Keep **Node+tsx** entrypoints for npm/npx and `FM_ACP_RUNTIME=node`.
 - Prefer Terminal-hosted `fm serve --socket` (`FM_ACP_SERVE_SOCK`, default `~/.config/fm-acp/fm.sock`).
 - PCC: only validated when **`fm serve` itself** runs under Terminal.app. External clients then get system+pcc. Background `fm serve` is system-only.
 - Happy-path auto-start (default ON): `src/serve-bootstrap.ts` ensures **cua-driver** (postinstall + runtime), then `launch_app` Terminal+`additional_arguments` (preferred) then `open -a Terminal`. Disable with `FM_ACP_AUTO_SERVE=0`. Do **not** use osascript `do script`.

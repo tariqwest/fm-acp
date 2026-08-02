@@ -5,9 +5,10 @@ class FmAcp < Formula
   sha256 "90c0c50ffd111770f1faa9dc9101c778ed01c267ecf60edc57b5c251bb7e9690"
   license "MIT"
 
+  depends_on "bun"
   depends_on "cua-driver"
   depends_on :macos
-  depends_on "node"
+  depends_on "node" # npm/npx + FM_ACP_RUNTIME=node fallback (tsx)
 
   def install
     libexec.install Dir["*"]
@@ -16,7 +17,9 @@ class FmAcp < Formula
       #!/bin/bash
       set -euo pipefail
       export FM_ACP_SKIP_CUA_DRIVER_POSTINSTALL="${FM_ACP_SKIP_CUA_DRIVER_POSTINSTALL:-1}"
-      export PATH="#{formula_opt_bin("cua-driver")}:${PATH}"
+      export PATH="#{formula_opt_bin("cua-driver")}:#{formula_opt_bin("bun")}:#{formula_opt_bin("node")}:${PATH}"
+      # Default to Bun when available; override with FM_ACP_RUNTIME=node for tsx/npx-style Node.
+      export FM_ACP_RUNTIME="${FM_ACP_RUNTIME:-bun}"
       exec "#{formula_opt_bin("node")}/node" "#{libexec}/bin/fm-acp.mjs" "$@"
     EOS
     chmod 0755, bin/"fm-acp"
@@ -24,6 +27,10 @@ class FmAcp < Formula
     (bin/"fm-acp-terminal-helper").write <<~EOS
       #!/bin/bash
       set -euo pipefail
+      export PATH="#{formula_opt_bin("bun")}:#{formula_opt_bin("node")}:${PATH}"
+      if command -v bun >/dev/null 2>&1 && [ "${FM_ACP_RUNTIME:-bun}" != "node" ]; then
+        exec bun "#{libexec}/bin/fm-acp-terminal-helper.mjs" "$@"
+      fi
       exec "#{formula_opt_bin("node")}/node" "#{libexec}/bin/fm-acp-terminal-helper.mjs" "$@"
     EOS
     chmod 0755, bin/"fm-acp-terminal-helper"
@@ -35,6 +42,10 @@ class FmAcp < Formula
         - macOS 26+ (27+ for system fm / PCC)
         - Apple Silicon with Apple Intelligence enabled
         - /usr/bin/fm (system) and/or afm on PATH
+
+      Runtime:
+        - Preferred: Bun (Homebrew dependency)
+        - Fallback / npm-npx: Node + bundled tsx (FM_ACP_RUNTIME=node)
 
       PCC happy path (default):
         fm-acp auto-starts Terminal-hosted `fm serve` via cua-driver.
