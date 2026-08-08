@@ -52,7 +52,7 @@ Helper under Terminal is **not a viable PCC path** (child `fm respond` still den
 2. Document operator step: start `fm serve --socket ~/.config/fm-acp/fm.sock` in Terminal.app (or via `open -a Terminal` wrapper).
 3. Keep `afm` / direct `fm` as fallbacks for on-device when serve is down.
 4. Quarantine/remove auto-bootstrap helper complexity; helper `fm respond` under Terminal did not return PCC text (exit 1). Do not invest in dual-launch AppleScript design.
-5. `fm-wrap` / `node-pty` are not required for the validated PCC path.
+5. `fm-access-pcc` / `node-pty` are not required for the validated PCC path.
 6. Bootstrap note: `osascript do script` opened tabs but did not run commands here; `open -a Terminal script.sh` works.
 7. **cua-driver automation (2026-08-01):** PASS — see section below.
 

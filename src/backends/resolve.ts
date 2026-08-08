@@ -189,9 +189,9 @@ export async function runPromptTurn(
         skipBootstrap: true,
       });
     };
-    const tryFmWrap = async (turnReq: PromptTurnRequest) => {
+    const tryFmAccessPcc = async (turnReq: PromptTurnRequest) => {
       if (!backends.fmBin) {
-        throw new FmAcpError("system fm binary not found for fm-wrap PCC path");
+        throw new FmAcpError("system fm binary not found for fm-access-pcc PCC path");
       }
       return await fmPromptTurn(backends.fmBin, turnReq);
     };
@@ -214,15 +214,15 @@ export async function runPromptTurn(
     // serve-socket first (validated Phase 0); legacy paths after.
     const order =
       pref === "fm"
-        ? (["serve", "helper", "fm-wrap"] as const)
-        : (["serve", "bridge", "helper", "fm-wrap"] as const);
+        ? (["serve", "helper", "fm-access-pcc"] as const)
+        : (["serve", "bridge", "helper", "fm-access-pcc"] as const);
 
     for (const pathName of order) {
       const guarded = withEmitGuard(req);
       try {
         if (pathName === "serve") return await tryServe(guarded.req);
         if (pathName === "helper") return await tryHelper(guarded.req);
-        if (pathName === "fm-wrap") return await tryFmWrap(guarded.req);
+        if (pathName === "fm-access-pcc") return await tryFmAccessPcc(guarded.req);
         return await tryBridge(guarded.req);
       } catch (err) {
         if (req.signal?.aborted) throw err;

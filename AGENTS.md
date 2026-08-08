@@ -40,7 +40,7 @@ bun run typecheck
 - Homebrew `afm` 0.1.0 has **no** `bridge`/`available`; do not probe those. On-device via `model status` + `session`.
 - Lab Agent Bridge (signed app entitlement) is the designed non-Terminal PCC alternative; not operable until Lab exposes a running bridge host + descriptor. Details: `.agents/research/afm-lab-pcc-findings.md`.
 - A PTY alone does **not** unlock PCC. No parent-spoofing / process injection.
-- No `fm-wrap` / `node-pty` runtime dependency.
+- No `fm-access-pcc` / `node-pty` runtime dependency.
 - Multi-turn: serve uses message history; fm fallback uses `--save-transcript`/`--resume`; afm uses ACP-side history.
 - Do not parse interactive `fm chat` TUI.
 - Session IDs must be UUIDs; unknown prompt sessions error; overlapping prompts return busy.

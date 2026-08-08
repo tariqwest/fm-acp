@@ -27,9 +27,9 @@ It is **not yet safe or releasable**. A full architecture/security/ACP/prior-art
 2. **Correctness defects** (concurrent prompt races, fire-and-forget stream callbacks, fallback after partial output, weak cancel escalation, corrupt-store wipe).
 3. **ACP conformance gaps** (silent unknown-session creation, over-advertised image support, incomplete lifecycle, ignored MCP/cwd semantics).
 4. **Likely wrong PCC architecture** relative to current macOS 27 guidance and prior art: Apple ships `fm serve --socket`; community tools foreground that server in Terminal.app rather than auto-spawning Node helpers that then call `fm respond`.
-5. **Package/release blockers** (`link:../fm-wrap`, runtime `tsx`, install-time `npx node-gyp`, no CI/contract tests).
+5. **Package/release blockers** (`link:../fm-access-pcc`, runtime `tsx`, install-time `npx node-gyp`, no CI/contract tests).
 
-**Recommended direction:** harden security and session semantics immediately; validate PCC with a Terminal.app matrix; then prefer a thin ACP client over user-started, Terminal-foregrounded `fm serve --socket`, collapsing the helper/`fm-wrap`/node-pty stack unless Phase 0 proves they uniquely enable PCC.
+**Recommended direction:** harden security and session semantics immediately; validate PCC with a Terminal.app matrix; then prefer a thin ACP client over user-started, Terminal-foregrounded `fm serve --socket`, collapsing the helper/`fm-access-pcc`/node-pty stack unless Phase 0 proves they uniquely enable PCC.
 
 ---
 
@@ -40,7 +40,7 @@ It is **not yet safe or releasable**. A full architecture/security/ACP/prior-art
 - Installed `@agentclientprotocol/sdk@1.3.0` contracts
 - Installed `/usr/bin/fm` (`available`, `serve --help`, command surface)
 - `pnpm pack --dry-run` / existing test+typecheck surface (44 tests green)
-- Prior art: `fm-proxy`, `afm`, `fm-server`/`fm-wrap` stack, mature ACP adapters (`agy-acp`, `openclaw/acpx`, `gemini-acp`)
+- Prior art: `fm-proxy`, `afm`, `fm-server`/`fm-access-pcc` stack, mature ACP adapters (`agy-acp`, `openclaw/acpx`, `gemini-acp`)
 - Architecture/security child audit with live path-traversal and permission probes
 
 ### Confidence levels used in this plan
@@ -76,7 +76,7 @@ bin/fm-acp.mjs → tsx src/index.ts → FmAcpAgent (src/adapter.ts)
            │     afm session stream/respond  →  fm respond
            │
            └─ model=pcc:
-                 helper socket  →  afm bridge  →  fm-wrap/PTY fm respond
+                 helper socket  →  afm bridge  →  fm-access-pcc/PTY fm respond
                         │
                         ▼
               fm-acp-terminal-helper (Terminal.app descendant)
@@ -290,7 +290,7 @@ None confirmed as remote RCE / cross-user privilege escalation under current sam
 | Cancel mid-turn | incomplete persistence | consistent history + stopReason |
 
 ### Release / packaging blockers (confirmed)
-- `fm-wrap: "link:../fm-wrap"` unpublishable
+- `fm-access-pcc: "link:../fm-access-pcc"` unpublishable
 - Runtime executes TS via production `tsx`
 - `node-pty` direct dep + postinstall rebuild via networky `npx`
 - Open caret ranges on pre-1.0 / fast-moving deps
@@ -328,7 +328,7 @@ Fallbacks (if serve unavailable):
   afm session / bridge
   direct /usr/bin/fm respond
 
-Helper / fm-wrap / node-pty:
+Helper / fm-access-pcc / node-pty:
   keep only if Phase 0 shows unique PCC value; otherwise remove or quarantine
 ```
 
@@ -432,7 +432,7 @@ Exit criteria:
    3. direct fm
    4. helper only if still required for PCC
 4. Remove or optionalize:
-   - `link:../fm-wrap`
+   - `link:../fm-access-pcc`
    - `node-pty` + postinstall rebuild
    - auto-bootstrap helper path
 5. Docs rewrite: operator starts `fm serve --socket …` in Terminal.app
@@ -440,7 +440,7 @@ Exit criteria:
 Exit criteria:
 - system streaming works via serve-socket without CLI scraping
 - PCC either works via documented Terminal serve path or is honestly marked non-runnable
-- package no longer requires sibling `fm-wrap` checkout
+- package no longer requires sibling `fm-access-pcc` checkout
 
 ### Phase 4 — Release engineering & test infrastructure
 1. Packaging
@@ -468,7 +468,7 @@ Exit criteria:
    - typecheck includes helper JS via allowJs/checkJs or rewrite helper to TS build
 
 Exit criteria:
-- clean install from packed tarball on a machine without `../fm-wrap`
+- clean install from packed tarball on a machine without `../fm-access-pcc`
 - CI green on PR
 - security regressions covered by tests
 
@@ -625,7 +625,7 @@ Tests are mostly pure builders/parsers + fake helper client. Missing adapter lif
 ### Phase 3
 20. fm serve UDS client backend
 21. Resolver reordering + env/docs
-22. Remove or optionalize fm-wrap/node-pty/helper based on Phase 0
+22. Remove or optionalize fm-access-pcc/node-pty/helper based on Phase 0
 23. Mock serve integration tests
 
 ### Phase 4

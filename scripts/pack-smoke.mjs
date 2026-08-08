@@ -47,8 +47,8 @@ try {
       throw new Error(`publishable package still has local dep ${name}=${ver}`);
     }
   }
-  if (pkg.dependencies?.["node-pty"] || pkg.dependencies?.["fm-wrap"]) {
-    throw new Error("publishable package must not depend on node-pty or fm-wrap");
+  if (pkg.dependencies?.["node-pty"] || pkg.dependencies?.["fm-access-pcc"]) {
+    throw new Error("publishable package must not depend on node-pty or fm-access-pcc");
   }
 
 const installDir = path.join(tmp, "install");
@@ -86,8 +86,8 @@ const installDir = path.join(tmp, "install");
 
   // lockfile should not require link
   const lock = readFileSync(path.join(installDir, "pnpm-lock.yaml"), "utf8");
-  if (lock.includes("link:") && lock.includes("fm-wrap")) {
-    throw new Error("install lock still references linked fm-wrap");
+  if (lock.includes("link:") && lock.includes("fm-access-pcc")) {
+    throw new Error("install lock still references linked fm-access-pcc");
   }
 
   console.error("[pack-smoke] OK", tgz);

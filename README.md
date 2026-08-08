@@ -123,7 +123,7 @@ When fm-acp handles a PCC turn it tries, in order:
 | id | Purpose |
 |---|---|
 | `model` | `system` \| `pcc` |
-| `backend` | `auto` \| `afm` \| `fm` (fm path uses helper → fm-wrap; PCC prefers helper) |
+| `backend` | `auto` \| `afm` \| `fm` (fm path uses helper → fm-access-pcc; PCC prefers helper) |
 | `instructions` | System instructions |
 | `use_case` | `general` \| `content-tagging` |
 | `guardrails` | `default` \| `permissive-content-transformations` |
@@ -196,6 +196,54 @@ bun run release -- --skip-tests
 - On-device model is small (~3B); not a full coding agent replacement.
 - PCC from GUI-launched hosts needs Terminal-hosted `fm serve --socket` (recommended). **Homebrew `afm` 0.1.0 is on-device only** (no `bridge`/`available`). Foundation Lab is signed with `com.apple.developer.private-cloud-compute` and historically hosted Agent Bridge (`connection.json` + bearer loopback); upstream removed that surface from Lab `main` on 2026-07-01 — see `.agents/research/afm-lab-pcc-findings.md`. Spawning `fm respond` from a Node helper under Terminal still fails PCC. A PTY does **not** satisfy Apple's ancestry check.
 - Keep logs on stderr only — stdout is ACP JSON-RPC.
+
+## Related projects
+
+### Parent / protocol & platform
+
+| Project | Relationship |
+|---|---|
+| [Agent Client Protocol](https://agentclientprotocol.com) | Parent protocol: stdio JSON-RPC that `fm-acp` implements as an agent server |
+| Apple **Foundation Models** (`/usr/bin/fm`, Apple Intelligence / PCC) | Parent on-device + Private Cloud Compute platform this adapter targets |
+| [`afm`](https://github.com/rudrankriyam/Foundation-Models-Framework-CLI) ([`rudrankriyam/tap`](https://github.com/rudrankriyam/homebrew-tap)) | Parent/upstream CLI fallback for Framework access (`session`, on-device) |
+| [Cua Driver](https://cua.ai/driver/install.sh) | Runtime dependency for Terminal-hosted `fm serve` auto-start (PCC happy path) |
+
+### Sibling ACP adapters (same family)
+
+Same “ACP host ↔ stdio adapter ↔ backend CLI/API” shape as `fm-acp`:
+
+| Project | Backend |
+|---|---|
+| [`oz-acp`](https://github.com/tariqwest/oz-acp) | Warp [`oz`](https://docs.warp.dev/reference/cli) |
+| [`agy-acp`](https://github.com/tariqwest/agy-acp) | Google Antigravity `agy` (Rust) |
+| [`antigravity-acp`](https://github.com/shubzkothekar/antigravity-acp) | Overlapping community ACP server for `agy` (Node/Bun; ToS risk on Google accounts) |
+
+### Sibling / child Foundation Models stack
+
+Projects in the same Apple FM surface area (library, HTTP, SDK). Prefer **`fm serve` + this adapter** for ACP hosts; the others cover REST, native bindings, or experimental PCC access:
+
+| Project | Role |
+|---|---|
+| [`fm-server`](https://github.com/tariqwest/fm-server) | OpenAI-compatible HTTP server over system + PCC backends |
+| [`fm-access-PCC`](https://github.com/tariqwest/fm-access-PCC) | TypeScript library + REST helpers for system + PCC |
+| [`javascript-apple-fm-sdk`](https://github.com/tariqwest/javascript-apple-fm-sdk) | JS/TS bindings for on-device `SystemLanguageModel` |
+
+`fm-acp` is the **ACP edge** of that stack (stdio), not a replacement for `fm-server`’s HTTP API.
+
+### Overlapping gateways & CLI glue
+
+| Project | Overlap |
+|---|---|
+| [`acp-to-api`](https://github.com/tariqwest/acp-to-api) | Inverse direction: OpenAI-compatible REST **in front of** local ACP agents (compose with `fm-acp` as the agent process) |
+| [`prompt-to-api`](https://github.com/tariqwest/prompt-to-api) | Sibling REST gateway for single-prompt / print-mode CLIs (not full ACP sessions) |
+| [`promptpipe`](https://github.com/tariqwest/promptpipe) | Unix-style prompt/stdin adapters for many CLIs, including `fm respond` and `oz` |
+| [`agentbridge`](https://github.com/tariqwest/agentbridge) | Local MITM edge routing IDE/CLI AI traffic (broader routing, not FM-specific) |
+
+### Inspiration
+
+- ACP adapter layout and host wiring patterns from **`agy-acp` / `oz-acp`** (and the wider Antigravity ACP ecosystem).
+- On-device session UX and CLI surface from **`afm`** / Foundation Models Framework CLI.
+- PCC attribution constraints and Terminal-hosted serve path from local research in this repo (`.agents/research/`) and experiments around `fm-access-PCC` / helper spawn.
 
 ## License
 
