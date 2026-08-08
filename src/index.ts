@@ -1,6 +1,10 @@
 import * as acp from "@agentclientprotocol/sdk";
 import { Readable, Writable } from "node:stream";
 import { FmAcpAgent } from "./adapter.ts";
+import { applyFmAccessPccEnvBridge } from "./env-bridge.ts";
+
+// Map FM_ACP_* → fm-access-pcc before any serve/PCC probes.
+applyFmAccessPccEnvBridge();
 
 type UnknownRecord = Record<string, unknown>;
 

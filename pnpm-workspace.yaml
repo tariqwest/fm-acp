@@ -3,3 +3,4 @@ packages:
 allowBuilds:
   node-pty: true
   esbuild: true
+  fm-access-pcc@https://github.com/tariqwest/fm-access-PCC/releases/download/v0.2.0/fm-access-pcc-0.2.0.tgz: set this to true or false

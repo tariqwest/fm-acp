@@ -47,8 +47,15 @@ try {
       throw new Error(`publishable package still has local dep ${name}=${ver}`);
     }
   }
-  if (pkg.dependencies?.["node-pty"] || pkg.dependencies?.["fm-access-pcc"]) {
-    throw new Error("publishable package must not depend on node-pty or fm-access-pcc");
+  if (pkg.dependencies?.["node-pty"]) {
+    throw new Error("publishable package must not depend on node-pty directly (use fm-access-pcc)");
+  }
+  if (!pkg.dependencies?.["fm-access-pcc"]) {
+    throw new Error("publishable package must depend on fm-access-pcc for PCC");
+  }
+  const ver = String(pkg.dependencies["fm-access-pcc"]);
+  if (ver.startsWith("link:") || ver.startsWith("file:")) {
+    throw new Error(`fm-access-pcc must be a published/tarball dep, got ${ver}`);
   }
 
 const installDir = path.join(tmp, "install");

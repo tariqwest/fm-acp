@@ -151,8 +151,8 @@ export function normalizeFmOutputText(raw: string): string {
 }
 
 /**
- * Run one fm turn via direct /usr/bin/fm spawn (no fm-access-pcc/node-pty).
- * Prefer fm serve --socket for PCC; this path is an on-device fallback.
+ * Run one fm turn via direct /usr/bin/fm spawn (system fallback).
+ * PCC is owned by fm-access-pcc (Terminal-hosted fm serve); do not use this path for pcc.
  */
 export async function fmPromptTurn(
   bin: string,

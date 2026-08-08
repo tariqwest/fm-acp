@@ -1,17 +1,19 @@
 # fm-acp
 
-An [Agent Client Protocol (ACP)](https://agentclientprotocol.com) stdio adapter for Apple Foundation Models on macOS. It bridges ACP hosts (Zed, VS Code ACP clients, Devin Desktop, …) to:
+An [Agent Client Protocol (ACP)](https://agentclientprotocol.com) stdio adapter for Apple Foundation Models on macOS. It bridges ACP hosts (Zed, VS Code ACP clients, Devin Desktop, …) to on-device **system** and **PCC** models.
 
-1. **`/usr/bin/fm serve --socket`** — **preferred** OpenAI-compatible local server (system + PCC when the server is started in Terminal.app)
-2. **`afm`** ([Foundation-Models-Framework-CLI](https://github.com/rudrankriyam/Foundation-Models-Framework-CLI)) — fallback CLI
-3. **System `/usr/bin/fm respond`** — direct spawn fallback (no native addons)
-4. **`fm-acp-terminal-helper`** — legacy; **not a reliable PCC path** (child `fm respond` still loses Terminal attribution)
+**PCC + Terminal-hosted `fm serve` are implemented in [`fm-access-pcc`](https://github.com/tariqwest/fm-access-pcc).** This package is the ACP edge: it depends on that library for serve bootstrap, availability, and chat completions, then falls back to:
+
+1. **`fm-access-pcc`** — Terminal-hosted `fm serve --socket` (system + PCC) and optional Lab bridge
+2. **`afm`** ([Foundation-Models-Framework-CLI](https://github.com/rudrankriyam/Foundation-Models-Framework-CLI)) — on-device CLI fallback
+3. **System `/usr/bin/fm respond`** — direct spawn fallback (system only; not PCC)
+4. **`fm-acp-terminal-helper`** — legacy; **not a reliable PCC path**
 
 ```
-Terminal.app (once):
+Terminal.app (via fm-access-pcc / cua-driver):
   fm serve --socket ~/.config/fm-acp/fm.sock
 
-ACP host  <--stdio NDJSON-->  fm-acp  <--HTTP over UDS-->  fm serve
+ACP host  <--stdio NDJSON-->  fm-acp  --fm-access-pcc-->  fm serve (UDS)
                                  |
                                  +-- fallbacks: afm | fm respond | helper (legacy)
 ```
@@ -22,7 +24,8 @@ ACP host  <--stdio NDJSON-->  fm-acp  <--HTTP over UDS-->  fm serve
 - Apple Silicon with Apple Intelligence enabled
 - **Bun** ≥ 1.1 (preferred dev/runtime) and/or **Node.js** ≥ 20 (npm/npx + `FM_ACP_RUNTIME=node`)
 - **Either** system `fm` at `/usr/bin/fm` **or** `afm` on `PATH`
-- **`cua-driver`** (happy path for PCC auto-start). Installed automatically by `pnpm install` / first auto-serve; or:
+- **`fm-access-pcc`** (dependency) — owns PCC transport + serve bootstrap
+- **`cua-driver`** (happy path for PCC auto-start; pulled/ensured via `fm-access-pcc` and optional local postinstall); or:
 
 ```bash
 curl -fsSL https://cua.ai/driver/install.sh | bash
@@ -35,12 +38,12 @@ brew tap rudrankriyam/tap
 brew install afm
 ```
 
-## PCC (happy path): auto Terminal-hosted `fm serve`
+## PCC (happy path): auto Terminal-hosted `fm serve` via fm-access-pcc
 
-PCC is available to **external clients** when `fm serve` itself runs under Terminal.app. **fm-acp does this by default**:
+PCC is available to **external clients** when `fm serve` itself runs under Terminal.app. **fm-acp does this by default through [`fm-access-pcc`](https://github.com/tariqwest/fm-access-pcc)**:
 
-1. Ensure **`cua-driver`** (install via official script if missing)
-2. Write `~/.config/fm-acp/start-fm-serve.command`
+1. Map `FM_ACP_*` → `FM_ACCESS_PCC_*` (defaults keep sockets under `~/.config/fm-acp`)
+2. Library ensures **`cua-driver`**, writes the serve launcher, and launches Terminal
 3. **`cua-driver call launch_app`** Terminal + `additional_arguments` (validated PCC path)
 4. Fallback: **`open -a Terminal`** that launcher
 
@@ -69,7 +72,7 @@ fm serve --socket ~/.config/fm-acp/fm.sock
 
 Validated: non-Terminal `fm serve` serves **system** only; Terminal-hosted `fm serve` serves **system + pcc**. `osascript do script` is **not** reliable. Helper `fm respond` under Terminal still fails PCC for the child.
 
-> Note: There is no npm package that ships the `cua-driver` CLI. `@trycua/cua-driver` is an SDK only. fm-acp depends on the **system CLI/app** from [Cua’s installer](https://cua.ai/driver/install.sh) and treats it as a required runtime dependency for the happy path (`postinstall` + runtime ensure).
+> Note: There is no npm package that ships the `cua-driver` CLI. `@trycua/cua-driver` is an SDK only. **fm-access-pcc** (and this package’s optional postinstall) depend on the **system CLI/app** from [Cua’s installer](https://cua.ai/driver/install.sh).
 
 ## Run
 
@@ -114,16 +117,17 @@ The old `fm-acp-terminal-helper` path (spawn `fm respond` under Terminal) is **n
 
 When fm-acp handles a PCC turn it tries, in order:
 
-1. **`fm serve --socket`** (if healthy — preferred; auto-started via cua-driver by default)
-2. **Foundation Lab Agent Bridge** (`~/.afm/bridge/connection.json` loopback HTTP, or `afm bridge` CLI if present)
-3. **helper** / direct `fm respond` (legacy best-effort; usually fails PCC)
+1. **`fm-access-pcc`** — Terminal-hosted `fm serve` + optional Lab bridge (preferred)
+2. **helper** (legacy best-effort; usually fails PCC)
+
+Direct `fm respond --model pcc` is **not** used as a success path.
 
 ## Config options
 
 | id | Purpose |
 |---|---|
 | `model` | `system` \| `pcc` |
-| `backend` | `auto` \| `afm` \| `fm` (fm path uses helper → fm-access-pcc; PCC prefers helper) |
+| `backend` | `auto` \| `afm` \| `fm` (ordering among CLI fallbacks; **PCC always prefers fm-access-pcc**) |
 | `instructions` | System instructions |
 | `use_case` | `general` \| `content-tagging` |
 | `guardrails` | `default` \| `permissive-content-transformations` |
@@ -194,7 +198,7 @@ bun run release -- --skip-tests
 ## Notes / limits
 
 - On-device model is small (~3B); not a full coding agent replacement.
-- PCC from GUI-launched hosts needs Terminal-hosted `fm serve --socket` (recommended). **Homebrew `afm` 0.1.0 is on-device only** (no `bridge`/`available`). Foundation Lab is signed with `com.apple.developer.private-cloud-compute` and historically hosted Agent Bridge (`connection.json` + bearer loopback); upstream removed that surface from Lab `main` on 2026-07-01 — see `.agents/research/afm-lab-pcc-findings.md`. Spawning `fm respond` from a Node helper under Terminal still fails PCC. A PTY does **not** satisfy Apple's ancestry check.
+- PCC from GUI-launched hosts needs Terminal-hosted `fm serve --socket` via **fm-access-pcc** (recommended). **Homebrew `afm` 0.1.0 is on-device only** (no `bridge`/`available`). Foundation Lab is signed with `com.apple.developer.private-cloud-compute` and historically hosted Agent Bridge (`connection.json` + bearer loopback); upstream removed that surface from Lab `main` on 2026-07-01 — see `.agents/research/afm-lab-pcc-findings.md`. Spawning `fm respond` from a Node helper under Terminal still fails PCC. A PTY does **not** satisfy Apple's ancestry check.
 - Keep logs on stderr only — stdout is ACP JSON-RPC.
 
 ## Related projects
@@ -218,17 +222,20 @@ Same “ACP host ↔ stdio adapter ↔ backend CLI/API” shape as `fm-acp`:
 | [`agy-acp`](https://github.com/tariqwest/agy-acp) | Google Antigravity `agy` (Rust) |
 | [`antigravity-acp`](https://github.com/shubzkothekar/antigravity-acp) | Overlapping community ACP server for `agy` (Node/Bun; ToS risk on Google accounts) |
 
-### Sibling / child Foundation Models stack
-
-Projects in the same Apple FM surface area (library, HTTP, SDK). Prefer **`fm serve` + this adapter** for ACP hosts; the others cover REST, native bindings, or experimental PCC access:
+### Parent library (PCC / serve)
 
 | Project | Role |
 |---|---|
-| [`fm-server`](https://github.com/tariqwest/fm-server) | OpenAI-compatible HTTP server over system + PCC backends |
-| [`fm-access-PCC`](https://github.com/tariqwest/fm-access-PCC) | TypeScript library + REST helpers for system + PCC |
+| [`fm-access-pcc`](https://github.com/tariqwest/fm-access-pcc) | **Parent implementation** for PCC + Terminal-hosted `fm serve`, Lab bridge probe, and cua-driver bootstrap. fm-acp depends on this package. |
+
+### Sibling / child Foundation Models stack
+
+| Project | Role |
+|---|---|
+| [`fm-server`](https://github.com/tariqwest/fm-server) | OpenAI-compatible HTTP server; routes **pcc** through **fm-access-pcc** |
 | [`javascript-apple-fm-sdk`](https://github.com/tariqwest/javascript-apple-fm-sdk) | JS/TS bindings for on-device `SystemLanguageModel` |
 
-`fm-acp` is the **ACP edge** of that stack (stdio), not a replacement for `fm-server`’s HTTP API.
+`fm-acp` is the **ACP stdio edge** of that stack, not a replacement for `fm-server`’s HTTP API or `fm-access-pcc`’s library API.
 
 ### Overlapping gateways & CLI glue
 
@@ -243,7 +250,7 @@ Projects in the same Apple FM surface area (library, HTTP, SDK). Prefer **`fm se
 
 - ACP adapter layout and host wiring patterns from **`agy-acp` / `oz-acp`** (and the wider Antigravity ACP ecosystem).
 - On-device session UX and CLI surface from **`afm`** / Foundation Models Framework CLI.
-- PCC attribution constraints and Terminal-hosted serve path from local research in this repo (`.agents/research/`) and experiments around `fm-access-PCC` / helper spawn.
+- PCC attribution constraints and Terminal-hosted serve path are maintained upstream in **fm-access-pcc**; research notes remain under `.agents/research/` here for historical context.
 
 ## License
 
