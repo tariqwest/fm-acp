@@ -42,7 +42,7 @@
     "@agentclientprotocol/sdk": "1.3.0",
     "fm-access-pcc": "https://github.com/tariqwest/fm-access-PCC/releases/download/v0.2.0/fm-access-pcc-0.2.0.tgz",
     "tsx": "4.20.5",
-    "zod": "4.0.14"
+    "zod": "4.6.6"
   },
   "devDependencies": {
     "@types/node": "24.3.0",
